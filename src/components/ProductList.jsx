@@ -10,7 +10,14 @@ export default function ProductList({ user, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [query, setQuery] = useState('');
   const [formFor, setFormFor] = useState(null); // null = closed, {} = add, product = edit
+  const filteredProducts = products.filter((product) =>
+    [product.product_name, product.description, String(product.id)]
+      .some((value) => String(value ?? '').toLowerCase().includes(query.trim().toLowerCase()))
+  );
+  const totalUnits = products.reduce((total, product) => total + Number(product.quantity || 0), 0);
+  const inventoryValue = products.reduce((total, product) => total + Number(product.price || 0) * Number(product.quantity || 0), 0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -44,65 +51,84 @@ export default function ProductList({ user, onLogout }) {
   };
 
   return (
-    <div className="container">
-      <header>
-        <h1>Products</h1>
-        <div className="header-right">
-          <span className="muted">Signed in as <strong>{user.username}</strong></span>
-          <button className="secondary" onClick={onLogout}>Logout</button>
+    <div className="app-shell">
+      <aside className="sidebar">
+        <a className="brand" href="#inventory" aria-label="Stockroom home">
+          <span className="brand-mark"><i /><i /><i /><i /></span>
+          <span>stockroom<span className="brand-period">.</span></span>
+        </a>
+
+        <div className="sidebar-label">Workspace</div>
+        <nav className="side-nav" aria-label="Workspace navigation">
+          <a className="side-link active" href="#inventory"><span className="nav-glyph">▦</span> Inventory</a>
+        </nav>
+
+        <div className="sidebar-bottom">
+          <span className="sidebar-label">Signed in</span>
+          <div className="account-row">
+            <span className="avatar">{(user?.username || 'U').slice(0, 1).toUpperCase()}</span>
+            <span className="account-copy"><strong>{user.username}</strong><small>{isAdmin ? 'Administrator' : 'Viewer'}</small></span>
+          </div>
+          <button className="sidebar-logout" onClick={onLogout}>Log out <span aria-hidden="true">↗</span></button>
         </div>
-      </header>
+      </aside>
 
-      {error && <div className="alert error">{error}</div>}
-      {notice && <div className="alert success" onClick={() => setNotice('')}>{notice}</div>}
+      <main className="main-area" id="inventory">
+        <div className="topline"><span>Operations <b>/</b> Inventory</span><span className="live-mark"><i /> Live catalog</span></div>
 
-      {isAdmin && (
-        <div className="toolbar">
-          <button onClick={() => setFormFor({})}>+ Add product</button>
-        </div>
-      )}
+        <section className="page-heading">
+          <div>
+            <p className="eyebrow">CATALOG / 01</p>
+            <h1>Inventory</h1>
+            <p className="page-subtitle">A clear view of every item on your shelf.</p>
+          </div>
+          {isAdmin && <button className="button-primary" onClick={() => setFormFor({})}><span aria-hidden="true">+</span> Add product</button>}
+        </section>
 
-      <div className="card table-wrap">
-        {loading ? <p className="center">Loading…</p> : (
-          <table>
-            <thead>
-              <tr>
-                <th>#</th><th>Name</th><th>Description</th><th className="num">Price</th><th className="num">Qty</th><th>Created</th>
-                {isAdmin && <th></th>}
-              </tr>
-            </thead>
-            <tbody>
-              {products.length === 0 && (
-                <tr><td colSpan={isAdmin ? 7 : 6} className="center muted">No products yet.</td></tr>
-              )}
-              {products.map((p) => (
-                <tr key={p.id}>
-                  <td>{p.id}</td>
-                  <td><strong>{p.product_name}</strong></td>
-                  <td className="muted">{p.description}</td>
-                  <td className="num">{peso.format(p.price)}</td>
-                  <td className="num">{p.quantity}</td>
-                  <td className="muted">{p.created_at}</td>
-                  {isAdmin && (
-                    <td className="actions">
-                      <button className="secondary small" onClick={() => setFormFor(p)}>Edit</button>
-                      <button className="danger small" onClick={() => handleDelete(p)}>Delete</button>
-                    </td>
+        {error && <div className="alert error">{error}</div>}
+        {notice && <div className="alert success" role="status" onClick={() => setNotice('')}>{notice}</div>}
+
+        <section className="stats-band" aria-label="Inventory summary">
+          <div className="stat-item"><span className="stat-label">PRODUCTS</span><strong>{products.length.toString().padStart(2, '0')}</strong><small>listed items</small></div>
+          <div className="stat-item"><span className="stat-label">UNITS ON HAND</span><strong>{totalUnits.toLocaleString('en-PH')}</strong><small>across all products</small></div>
+          <div className="stat-item stat-value"><span className="stat-label">STOCK VALUE</span><strong>{peso.format(inventoryValue)}</strong><small>based on current quantity</small></div>
+          <div className="stat-aside" aria-hidden="true"><span>STOCK<br />CONTROL</span><i>↘</i></div>
+        </section>
+
+        <section className="catalog-section">
+          <div className="catalog-heading">
+            <div><p className="eyebrow">YOUR CATALOG</p><h2>All products <span>{products.length}</span></h2></div>
+            <label className="search-box"><span aria-hidden="true">⌕</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search products" aria-label="Search products" /></label>
+          </div>
+
+          <div className="table-frame">
+            {loading ? <p className="center">Loading inventory…</p> : (
+              <table>
+                <thead><tr><th className="col-id">REF</th><th>PRODUCT</th><th className="description-col">DESCRIPTION</th><th className="num">PRICE</th><th className="num">ON HAND</th><th className="date-col">ADDED</th>{isAdmin && <th className="action-col">ACTIONS</th>}</tr></thead>
+                <tbody>
+                  {filteredProducts.length === 0 && (
+                    <tr><td colSpan={isAdmin ? 7 : 6} className="empty-cell">{products.length === 0 ? 'No products in the catalog yet.' : 'No products match your search.'}</td></tr>
                   )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+                  {filteredProducts.map((product) => (
+                    <tr key={product.id}>
+                      <td className="product-id">{String(product.id).padStart(3, '0')}</td>
+                      <td><div className="product-name"><span className="product-stamp">{product.product_name?.slice(0, 1).toUpperCase() || 'P'}</span><strong>{product.product_name}</strong></div></td>
+                      <td className="description-cell">{product.description || <span className="muted">No description</span>}</td>
+                      <td className="num price-cell">{peso.format(product.price)}</td>
+                      <td className="num"><span className={`stock-count ${Number(product.quantity) === 0 ? 'out-of-stock' : ''}`}>{Number(product.quantity).toLocaleString('en-PH')}<small>{Number(product.quantity) === 1 ? 'unit' : 'units'}</small></span></td>
+                      <td className="date-cell">{product.created_at}</td>
+                      {isAdmin && <td className="actions"><button className="action-edit" onClick={() => setFormFor(product)}>Edit</button><button className="action-delete" onClick={() => handleDelete(product)}>Delete</button></td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+          <div className="catalog-foot"><span>Showing {filteredProducts.length} of {products.length} products</span><span>Amounts in PHP <i>·</i> Catalog view</span></div>
+        </section>
+      </main>
 
-      {isAdmin && formFor && (
-        <ProductForm
-          product={formFor.id ? formFor : null}
-          onSaved={handleSaved}
-          onCancel={() => setFormFor(null)}
-        />
-      )}
+      {isAdmin && formFor && <ProductForm product={formFor.id ? formFor : null} onSaved={handleSaved} onCancel={() => setFormFor(null)} />}
     </div>
   );
 }
